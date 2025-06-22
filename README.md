@@ -1,6 +1,6 @@
 # PROYECTO BASE DE DATOS 💯
 
-Holi grupo, aqui unos datos para conectar a la bd. En el script de Python, pueden usar el siguiente código para conectarse a la base de datos PostgreSQL:
+Holi grupo, aqui unos datos para conectar a la bd que tengan no sé como es. En el script de Python, pueden usar el siguiente código para conectarse a la base de datos PostgreSQL:
 
 ```
 pip install faker psycopg2-binary
