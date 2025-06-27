@@ -1,4 +1,4 @@
--- Active: 1746627980787@@127.0.0.1@5433@proyecto
+-- Active: 1746627980787@@127.0.0.1@5433@bd
 
 -- Tabla Persona
 CREATE TABLE persona (
@@ -89,21 +89,25 @@ CREATE TABLE Diagnostico (
     observaciones VARCHAR(255) NOT NULL
 );
 
+
+-- Tabla Proveedor
+
+CREATE TABLE Proveedor (
+    administrador VARCHAR(8) REFERENCES Administrador(dni_persona) NOT NULL,
+    ruc VARCHAR(11) PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL
+);
 -- Tabla Insumo
 CREATE TABLE Insumo (
     id SERIAL PRIMARY KEY ,
     dni_persona VARCHAR(8) REFERENCES Recepcionista(dni_persona) NOT NULL,
     nombre VARCHAR(100) NOT NULL,
-    ruc_proveedor VARCHAR(11) NOT NULL,
+    ruc_proveedor VARCHAR(11) REFERENCES Proveedor(ruc) NOT NULL,
     stock INT NOT NULL,
     precio DECIMAL(10,2) NOT NULL
 );
 
--- Tabla Proveedor
-CREATE TABLE Proveedor (
-    ruc VARCHAR(11) PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL
-);
+
 
 -- Especializaciones de tratamiento
 CREATE TABLE Terapia (
@@ -190,6 +194,7 @@ CREATE TABLE Documenta (
 CREATE TABLE Recibe (
     id_mascota INT,
     id_tratamiento INT,
+    id_cita INT REFERENCES Cita(id),
     PRIMARY KEY (id_mascota, id_tratamiento),
     FOREIGN KEY (id_mascota) REFERENCES Mascota(id),
     FOREIGN KEY (id_tratamiento) REFERENCES Tratamiento(id)
