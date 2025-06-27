@@ -1,4 +1,4 @@
--- Active: 1746627980787@@127.0.0.1@5433@proyecto-bd
+-- Active: 1746627980787@@127.0.0.1@5433@cien-mil
 TRUNCATE TABLE 
 persona,
 propietario,

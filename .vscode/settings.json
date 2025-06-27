@@ -8,6 +8,33 @@
             "name": "bd",
             "database": "bd",
             "username": "postgres"
+        },
+        {
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5433,
+            "driver": "PostgreSQL",
+            "name": "mil",
+            "database": "mil",
+            "username": "postgres"
+        },
+        {
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5433,
+            "driver": "PostgreSQL",
+            "name": "diez-mil",
+            "database": "diez-mil",
+            "username": "postgres"
+        },
+        {
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5433,
+            "driver": "PostgreSQL",
+            "name": "cien-mil",
+            "database": "cien-mil",
+            "username": "postgres"
         }
     ]
 }

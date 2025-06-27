@@ -23,6 +23,7 @@ TOTAL = 1_000_000
 CHUNK_SIZE = 5000
 TRATAMIENTOS = ["Vacunación", "Cirugía menor", "Antibióticos", "Desparasitación", "Limpieza dental"]
 
+
 conn = psycopg2.connect(**DB_CONFIG)
 cur = conn.cursor()
 
@@ -60,7 +61,7 @@ def generar_personas_empleados():
                 empleados_data.append((dni, fecha_ingreso, '08:00', '17:00', round(random.uniform(2500, 5000), 2)))
 
             if rol == 'veterinario':
-                colegiatura = fake.unique.bothify(text='VET-#####')
+                colegiatura = fake.unique.bothify(text='VET-######')
                 especializacion = random.choice(['Dermatología', 'Cirugía', 'Oncología', 'Cardiología', 'Medicina General'])
                 veterinarios_data.append((dni, colegiatura, especializacion))
 
@@ -155,28 +156,9 @@ tratamientos = [row[0] for row in cur.fetchall()]
 cur.execute("SELECT id FROM cita LIMIT %s", (TOTAL,))
 citas = [row[0] for row in cur.fetchall()]
 
-print("Insertando registros en RECIBE...")
-for i in range(0, TOTAL, CHUNK_SIZE):
-    chunk = list(zip(
-        mascotas[i:i + CHUNK_SIZE],
-        tratamientos[i:i + CHUNK_SIZE],
-        citas[i:i + CHUNK_SIZE]
-    ))
-
-    execute_batch(cur, """
-        INSERT INTO recibe (id_mascota, id_tratamiento, id_cita)
-        VALUES (%s, %s, %s)
-    """, chunk)
-
-    conn.commit()
-    print(f"Insertados: {i + CHUNK_SIZE} / {TOTAL}")
-
-# Obtener DNIs válidos
+# Obtener lista de clientes (propietarios) para boletas
 cur.execute("SELECT dni_persona FROM propietario LIMIT %s", (TOTAL,))
 clientes = [row[0] for row in cur.fetchall()]
-
-cur.execute("SELECT dni_persona FROM recepcionista LIMIT 500")
-recepcionistas = [row[0] for row in cur.fetchall()]
 
 print("Insertando boletas y tratamientos...")
 for i in range(0, TOTAL, CHUNK_SIZE):
@@ -190,12 +172,16 @@ for i in range(0, TOTAL, CHUNK_SIZE):
         monto = round(random.uniform(30, 300), 2)
         boletas_chunk.append((fecha, cliente, recep, monto))
 
+    # Insertamos boletas sin RETURNING
     execute_batch(cur, """
         INSERT INTO boleta (fecha, dni_persona_cliente, dni_persona_recepcionista, monto)
-        VALUES (%s, %s, %s, %s) RETURNING id
+        VALUES (%s, %s, %s, %s)
     """, boletas_chunk)
 
-    boleta_ids = [row[0] for row in cur.fetchall()]
+    # Recuperamos los últimos CHUNK_SIZE IDs insertados, en orden correcto
+    cur.execute("SELECT id FROM boleta ORDER BY id DESC LIMIT %s", (CHUNK_SIZE,))
+    boleta_ids = [row[0] for row in cur.fetchall()][::-1]
+
     for id_boleta in boleta_ids:
         nombre_trat = random.choice(TRATAMIENTOS)
         tratamientos_chunk.append((nombre_trat, id_boleta))
@@ -206,16 +192,18 @@ for i in range(0, TOTAL, CHUNK_SIZE):
     """, tratamientos_chunk)
 
     conn.commit()
-    print(f"Insertados: {i + CHUNK_SIZE} / {TOTAL}")
+    print(f"Insertados: {i + CHUNK_SIZE} / {TOTAL} tratamientos")
 
-cur.execute("SELECT id FROM mascota LIMIT %s", (TOTAL,))
+
+cur.execute("SELECT id FROM mascota ORDER BY id ASC LIMIT %s", (TOTAL,))
 mascotas = [row[0] for row in cur.fetchall()]
 
-cur.execute("SELECT id FROM tratamiento LIMIT %s", (TOTAL,))
+cur.execute("SELECT id FROM tratamiento ORDER BY id ASC LIMIT %s", (TOTAL,))
 tratamientos = [row[0] for row in cur.fetchall()]
 
-cur.execute("SELECT id FROM cita LIMIT %s", (TOTAL,))
+cur.execute("SELECT id FROM cita ORDER BY id ASC LIMIT %s", (TOTAL,))
 citas = [row[0] for row in cur.fetchall()]
+
 
 print("Insertando registros en RECIBE...")
 for i in range(0, TOTAL, CHUNK_SIZE):

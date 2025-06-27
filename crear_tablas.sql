@@ -1,4 +1,4 @@
--- Active: 1746627980787@@127.0.0.1@5433@bd
+-- Active: 1746627980787@@127.0.0.1@5433@cien-mil
 
 -- Tabla Persona
 CREATE TABLE persona (
