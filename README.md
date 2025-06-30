@@ -1,28 +1,64 @@
 # PROYECTO BASE DE DATOS 💯
 
+## Estructura del proyecto
+```
+proyecto-bd
+├── .vscode
+│  └── settings.json
+├── consultas
+│  ├── consulta_1.sql
+│  ├── consulta_2.sql
+│  ├── consulta_2_new.sql
+│  ├── consulta_3.sql
+│  └── consulta_4.sql
+├── datos
+│  ├── cargar_100m.py
+│  ├── cargar_10m.py
+│  ├── cargar_1m.py
+│  ├── cargar_1MN.py
+│  └── vacunas1millon.py
+├── DB
+│  ├── tablas
+│  │  ├── tablas1
+│  │  ├── tablas10
+│  │  ├── tablas100
+│  │  ├── tablasMillon
+│  │  └── exportar.py
+│  ├── .gitattributes
+│  └── poblar.py
+├── readme-files
+├── resultados
+├── scripts
+│  ├── crear_tablas.sql
+│  ├── droptables.sql
+│  └── limpiar_bd.sql
+├── .gitattributes
+└── README.md
+```
+
 ## Cargar base de datos
 
-Holi, grupo, en el repo encontrarán el archivo `backup_bd.dump`, para cargar la base de datos hay dos opciones, desde terminal o usando pgAdmin, en esta sección solo mostraré como se hace desde pgAdmin porque ya tengo sueño 😢.
+Holi, grupo, asumiendo que ya tienen una base de datos creada, la manera en la que podrán *"clonar"* la base de datos es la siguiente:
 
-### Usando pgAdmin 
+En la carpeta `DB` encontrarán el archivo `poblar.py`, en donde tendrán que configurar los datos de la base de datos que han creado en local.
 
-1. Hagan click derecho sobre `Databases`, luego a `Create` y, finalmente, en `Database` le ponen un nombre, en mi caso será **prueba**
+```
+# === CONFIGURA ESTO ===
+DB_NAME = "nombre-bd"
+USER = "postgres"
+PASSWORD = "postgres"
+HOST = "localhost"
+PORT = "5432" # lo configuraron al momento de instalar pgAdmin
+CSV_PARENT_FOLDER = r"RUTA"
+# =======================
+```
 
-![alt text](readme-files/image.png)
-![alt text](readme-files/image-1.png)
+En el apartado de `CSV_PARENT_FOLDER`, la ruta es la dirección del directorio en donde se ecuentran las tablas con los datos.
 
-2.  Ahora le dan click derecho a la nueva db y luego a `Restore`
+Por ejemplo, dentro de la carpeta `tablas1` se encuentran los datos de la base de datos con 1000 datos (por tabla) y su ruta, en mi computadora, es algo así: 
+- `DB\tablas\tablas10`
+- `C:\Users\yarit\Documents\utec\2025-1\bd\proyecto\proyecto-bd\DB\tablas\tablas10`
 
-![alt text](readme-files/image-2.png)
-
-3. El formato dejenlo en custom y en `filename` busquen el archivo en la carpeta del repo.
-
-![alt text](readme-files/image-4.png)
-
-En caso no les aparezca, cambien esa cosita a `All files`
-![alt text](readme-files/image-3.png)
-
-¡Eso es todo! 🔥
 
 ## Crear base de datos
 
