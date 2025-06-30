@@ -42,7 +42,7 @@ Holi, grupo, asumiendo que ya tienen una base de datos creada, la manera en la q
 
 En la carpeta `DB` encontrarán el archivo `poblar.py`, en donde tendrán que configurar los datos de la base de datos que han creado en local.
 
-```
+```python
 # === CONFIGURA ESTO ===
 DB_NAME = "nombre-bd"
 USER = "postgres"
