@@ -3,6 +3,7 @@ import psycopg2
 from psycopg2.extras import execute_batch
 import random
 from datetime import time
+from psycopg2.extras import execute_batch, execute_values
 
 fake = Faker('es_ES')
 
@@ -14,14 +15,19 @@ DB_CONFIG = {
     "port": "5433"
 }
 
-TOTAL_VETERINARIOS = 100000
-TOTAL_RECEPCIONISTAS = 100000
-TOTAL_PROPIETARIOS = 100000
+TOTAL_VETERINARIOS = 10000
+TOTAL_RECEPCIONISTAS = 5000
+TOTAL_PROPIETARIOS = 85000
 TOTAL_MASCOTAS = 100000
 TOTAL_CITAS = 100000
+TOTAL_ADMIN = 5000
+TOTAL_PROVEEDORES = 10000
+TOTAL_INSUMOS = 20000
+TOTAL_VACUNAS = 30000
 TOTAL = 100000
-CHUNK_SIZE = 5000
+CHUNK_SIZE = 500
 TRATAMIENTOS = ["Vacunación", "Cirugía menor", "Antibióticos", "Desparasitación", "Limpieza dental"]
+
 
 conn = psycopg2.connect(**DB_CONFIG)
 cur = conn.cursor()
@@ -98,12 +104,13 @@ for i in range(0, TOTAL_MASCOTAS, CHUNK_SIZE):
         fecha_nac = fake.date_between(start_date='-10y', end_date='-3m')
         mascotas_data.append((nombre, especie, raza, sexo, fecha_nac))
 
-    execute_batch(cur, """
+    # Use execute_values to insert and RETURN ids
+    insert_query = """
         INSERT INTO mascota (nombre, especie, raza, sexo, fecha_nac)
-        VALUES (%s, %s, %s, %s, %s) RETURNING id
-    """, mascotas_data)
-
-    ids_mascotas = [row[0] for row in cur.fetchall()]
+        VALUES %s RETURNING id
+    """
+    ids_mascotas = execute_values(cur, insert_query, mascotas_data, fetch=True)
+    ids_mascotas = [row[0] for row in ids_mascotas]
     relaciones_data = list(zip(chunk_propietarios, ids_mascotas))
 
     execute_batch(cur, """
@@ -113,6 +120,7 @@ for i in range(0, TOTAL_MASCOTAS, CHUNK_SIZE):
 
     conn.commit()
     print(f"Insertados: {i + CHUNK_SIZE} / {TOTAL_MASCOTAS}")
+
 
 cur.execute("SELECT dni_persona FROM veterinario")
 veterinarios = [row[0] for row in cur.fetchall()]
@@ -159,10 +167,32 @@ citas = [row[0] for row in cur.fetchall()]
 cur.execute("SELECT dni_persona FROM propietario LIMIT %s", (TOTAL,))
 clientes = [row[0] for row in cur.fetchall()]
 
-print("Insertando boletas y tratamientos...")
+# Obtener insumos y preparar vacunas
+cur.execute("SELECT id FROM insumo ORDER BY id ASC LIMIT %s", (TOTAL,))  # Asumimos que ya hay insumos
+insumos = [row[0] for row in cur.fetchall()]
+insumo_index = 0
+
+# Seleccionamos 1000 insumos para que sean vacunas
+VACUNAS_ASIGNADAS = 1000
+vacuna_insumos = insumos[:VACUNAS_ASIGNADAS]
+
+# Insertar en tabla vacuna
+vacuna_data = [(id_insumo, fake.date_between(start_date='today', end_date='+1y')) for id_insumo in vacuna_insumos]
+execute_batch(cur, """
+    INSERT INTO vacuna (id_insumo, fecha_venc)
+    VALUES (%s, %s)
+""", vacuna_data)
+conn.commit()
+print("Vacunas insertadas")
+
+print("Insertando boletas y tratamientos + especializados...")
 for i in range(0, TOTAL, CHUNK_SIZE):
     boletas_chunk = []
     tratamientos_chunk = []
+    cirugias_chunk = []
+    recetas_chunk = []
+    terapias_chunk = []
+    vacunaciones_chunk = []
 
     for _ in range(CHUNK_SIZE):
         fecha = fake.date_between(start_date='-6M', end_date='today')
@@ -171,27 +201,58 @@ for i in range(0, TOTAL, CHUNK_SIZE):
         monto = round(random.uniform(30, 300), 2)
         boletas_chunk.append((fecha, cliente, recep, monto))
 
-    # Insertamos boletas sin RETURNING
     execute_batch(cur, """
         INSERT INTO boleta (fecha, dni_persona_cliente, dni_persona_recepcionista, monto)
         VALUES (%s, %s, %s, %s)
     """, boletas_chunk)
 
-    # Recuperamos los últimos CHUNK_SIZE IDs insertados, en orden correcto
     cur.execute("SELECT id FROM boleta ORDER BY id DESC LIMIT %s", (CHUNK_SIZE,))
     boleta_ids = [row[0] for row in cur.fetchall()][::-1]
 
     for id_boleta in boleta_ids:
-        nombre_trat = random.choice(TRATAMIENTOS)
-        tratamientos_chunk.append((nombre_trat, id_boleta))
+        tipo = random.choice(TRATAMIENTOS)
+        tratamientos_chunk.append((tipo, id_boleta))
 
     execute_batch(cur, """
         INSERT INTO tratamiento (nombre, id_boleta)
         VALUES (%s, %s)
     """, tratamientos_chunk)
 
+    cur.execute("SELECT id FROM tratamiento ORDER BY id DESC LIMIT %s", (CHUNK_SIZE,))
+    tratamiento_ids = [row[0] for row in cur.fetchall()][::-1]
+
+    for id_tratamiento, (tipo, _) in zip(tratamiento_ids, tratamientos_chunk):
+        if tipo == "Vacunación":
+            if insumo_index >= len(vacuna_insumos):
+                continue  # No más vacunas disponibles
+            id_insumo = vacuna_insumos[insumo_index]
+            vacunaciones_chunk.append((id_tratamiento, id_insumo))
+            insumo_index += 1
+        elif tipo == "Cirugía menor":
+            duracion = round(random.uniform(0.5, 5.0), 2)
+            cirugias_chunk.append((id_tratamiento, duracion))
+        elif tipo == "Antibióticos":
+            frecuencia = random.choice(["Cada 8h", "Cada 12h", "Diaria"])
+            recetas_chunk.append((id_tratamiento, frecuencia))
+        elif tipo == "Desparasitación":
+            fecha_ini = fake.date_between(start_date='-3M', end_date='-1M')
+            fecha_fin = fake.date_between(start_date='-1M', end_date='today')
+            terapias_chunk.append((id_tratamiento, fecha_ini, fecha_fin))
+        elif tipo == "Limpieza dental":
+            duracion = round(random.uniform(0.5, 2.0), 2)
+            cirugias_chunk.append((id_tratamiento, duracion))  # Asumimos como cirugía menor
+
+    if vacunaciones_chunk:
+        execute_batch(cur, "INSERT INTO vacunacion (id_tratamiento, id_insumo) VALUES (%s, %s)", vacunaciones_chunk)
+    if cirugias_chunk:
+        execute_batch(cur, "INSERT INTO cirugia (id_tratamiento, duracion) VALUES (%s, %s)", cirugias_chunk)
+    if recetas_chunk:
+        execute_batch(cur, "INSERT INTO receta (id_tratamiento, frecuencia) VALUES (%s, %s)", recetas_chunk)
+    if terapias_chunk:
+        execute_batch(cur, "INSERT INTO terapia (id_tratamiento, fechaInicio, fechaFin) VALUES (%s, %s, %s)", terapias_chunk)
+
     conn.commit()
-    print(f"Insertados: {i + CHUNK_SIZE} / {TOTAL} tratamientos")
+    print(f"Insertados tratamientos y especializados: {i + CHUNK_SIZE} / {TOTAL}")
 
 
 cur.execute("SELECT id FROM mascota ORDER BY id ASC LIMIT %s", (TOTAL,))
@@ -219,6 +280,101 @@ for i in range(0, TOTAL, CHUNK_SIZE):
 
     conn.commit()
     print(f"Insertados: {i + CHUNK_SIZE} / {TOTAL}")
+
+
+print("Insertando administradores...")
+
+# Primero, obtener todos los DNIs existentes en persona para evitar duplicados
+cur.execute("SELECT dni FROM persona")
+dnis_existentes = set(row[0] for row in cur.fetchall())
+
+personas_admins = []
+empleados_admins = []
+administradores_data = []
+
+admin_dnis = set()
+while len(admin_dnis) < TOTAL_ADMIN:
+    nuevo_dni = str(fake.unique.random_number(digits=8, fix_len=True))
+    if nuevo_dni not in dnis_existentes and nuevo_dni not in admin_dnis:
+        admin_dnis.add(nuevo_dni)
+
+admin_dnis = list(admin_dnis)
+
+for dni in admin_dnis:
+    nombre = fake.name()
+    direccion = fake.address().replace("\n", ", ")
+    telefono = fake.msisdn()[3:12]
+    personas_admins.append((dni, nombre, direccion, telefono))
+    fecha_ingreso = fake.date_between(start_date='-5y', end_date='-1y')
+    empleados_admins.append((dni, fecha_ingreso, '08:00', '17:00', round(random.uniform(3000, 6000), 2)))
+    rango = random.choice(["Gerente", "Supervisor", "Coordinador"])
+    administradores_data.append((dni, rango))
+
+execute_batch(cur, "INSERT INTO persona (dni, nombre_completo, direccion, telefono) VALUES (%s, %s, %s, %s)", personas_admins)
+execute_batch(cur, "INSERT INTO empleado (dni_persona, fecha_ingreso, inicio_turno, fin_turno, salario) VALUES (%s, %s, %s, %s, %s)", empleados_admins)
+execute_batch(cur, "INSERT INTO administrador (dni_persona, rango) VALUES (%s, %s)", administradores_data)
+conn.commit()
+print(f"Insertados {TOTAL_ADMIN} administradores")
+
+# === INSERTAR PROVEEDORES ===
+print("Insertando proveedores...")
+
+# Primero conseguimos DNIs válidos de administradores existentes
+cur.execute("SELECT dni_persona FROM administrador")
+admins_validos = [row[0] for row in cur.fetchall()]
+
+proveedores_data = []
+for _ in range(TOTAL_PROVEEDORES):
+    ruc = fake.unique.random_number(digits=11, fix_len=True)
+    nombre = fake.company()
+    administrador = random.choice(admins_validos)
+    proveedores_data.append((administrador, str(ruc), nombre))
+
+execute_batch(cur, """
+    INSERT INTO proveedor (administrador, ruc, nombre)
+    VALUES (%s, %s, %s)
+""", proveedores_data)
+
+conn.commit()
+print(f"Insertados {TOTAL_PROVEEDORES} proveedores")
+
+# === INSERTAR INSUMOS ===
+print("Insertando insumos...")
+
+# Obtener DNIs de recepcionistas y RUCs de proveedores
+cur.execute("SELECT dni_persona FROM recepcionista")
+recepcionistas_dni = [row[0] for row in cur.fetchall()]
+
+cur.execute("SELECT ruc FROM proveedor")
+rucs_proveedores = [row[0] for row in cur.fetchall()]
+
+insumos_data = []
+for _ in range(TOTAL_INSUMOS):
+    nombre = fake.word()
+    stock = random.randint(10, 1000)
+    precio = round(random.uniform(5, 200), 2)
+    dni_recepcionista = random.choice(recepcionistas_dni)
+    ruc_proveedor = random.choice(rucs_proveedores)
+    insumos_data.append((dni_recepcionista, nombre, ruc_proveedor, stock, precio))
+
+execute_batch(cur, """
+    INSERT INTO insumo (dni_persona, nombre, ruc_proveedor, stock, precio)
+    VALUES (%s, %s, %s, %s, %s)
+""", insumos_data)
+
+conn.commit()
+print(f"Insertados {TOTAL_INSUMOS} insumos")
+
+
+# === INSERTAR VACUNAS USANDO LOS ÚLTIMOS INSUMOS ===
+print("Insertando vacunas...")
+cur.execute("SELECT id FROM insumo ORDER BY id DESC LIMIT %s", (TOTAL_VACUNAS,))
+ultimos_insumos = [row[0] for row in cur.fetchall()]
+vacunas_data = [(id_insumo, fake.date_between(start_date='today', end_date='+2y')) for id_insumo in ultimos_insumos]
+
+execute_batch(cur, "INSERT INTO vacuna (id_insumo, fecha_venc) VALUES (%s, %s)", vacunas_data)
+conn.commit()
+print(f"Insertadas {TOTAL_VACUNAS} vacunas")
 
 cur.close()
 conn.close()
